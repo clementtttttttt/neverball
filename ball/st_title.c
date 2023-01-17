@@ -40,6 +40,8 @@
 #include "st_name.h"
 #include "st_shared.h"
 
+#include "events.h"
+
 /*---------------------------------------------------------------------------*/
 
 static int init_title_level(void)
@@ -196,6 +198,8 @@ static int title_gui(void)
         }
         gui_layout(id, 0, 0);
     }
+     signal_ev(EV_GUI_TITLE_INIT_POST, 1, &id);
+
 
     return id;
 }

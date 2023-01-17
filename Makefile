@@ -78,7 +78,7 @@ ALL_CXXFLAGS := -fno-rtti -fno-exceptions $(CXXFLAGS)
 SDL_CPPFLAGS := $(shell sdl2-config --cflags)
 PNG_CPPFLAGS := $(shell libpng-config --cflags)
 
-ALL_CPPFLAGS := $(SDL_CPPFLAGS) $(PNG_CPPFLAGS) -Ishare
+ALL_CPPFLAGS := $(SDL_CPPFLAGS) $(PNG_CPPFLAGS) -Ishare -Imodloader
 
 ALL_CPPFLAGS += \
 	-DCONFIG_USER=\"$(USERDIR)\" \
@@ -336,6 +336,7 @@ BALL_OBJS := \
 	ball/st_pause.o     \
 	ball/st_ball.o      \
 	ball/main.o
+
 PUTT_OBJS := \
 	share/lang.o        \
 	share/st_common.o   \
@@ -381,6 +382,13 @@ PUTT_OBJS := \
 	putt/st_conf.o      \
 	putt/main.o
 
+MOD_OBJS := \
+	modloader/events.o\
+	modloader/init.o
+
+BALL_OBJS += $(MOD_OBJS)
+PUTT_OBJS += $(MOD_OBJS)
+
 BALL_OBJS += share/solid_sim_sol.o
 PUTT_OBJS += share/solid_sim_sol.o
 
@@ -407,6 +415,8 @@ endif
 endif
 endif
 endif
+
+
 
 ifeq ($(ENABLE_HMD),openhmd)
 BALL_OBJS += share/hmd_openhmd.o share/hmd_common.o
@@ -436,6 +446,7 @@ BALL_OBJS += $(FETCH_OBJS)
 BALL_DEPS := $(BALL_OBJS:.o=.d)
 PUTT_DEPS := $(PUTT_OBJS:.o=.d)
 MAPC_DEPS := $(MAPC_OBJS:.o=.d)
+
 
 MAPS := $(shell find data -name "*.map" \! -name "*.autosave.map")
 SOLS := $(MAPS:%.map=%.sol)
@@ -511,7 +522,7 @@ desktops : $(DESKTOPS)
 
 clean-src :
 	$(RM) $(BALL_TARG) $(PUTT_TARG) $(MAPC_TARG)
-	find ball share putt \( -name '*.o' -o -name '*.d' \) -delete
+	find ball share putt modloader \( -name '*.o' -o -name '*.d' \) -delete
 	$(RM) neverball.ico.o neverputt.ico.o
 
 clean : clean-src
@@ -523,6 +534,6 @@ clean : clean-src
 
 .PHONY : all sols locales desktops clean-src clean
 
--include $(BALL_DEPS) $(PUTT_DEPS) $(MAPC_DEPS)
+-include $(BALL_DEPS) $(PUTT_DEPS) $(MAPC_DEPS) 
 
 #------------------------------------------------------------------------------

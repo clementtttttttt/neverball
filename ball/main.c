@@ -43,6 +43,7 @@
 #include "joy.h"
 #include "fetch.h"
 #include "package.h"
+#include "events.h"
 
 #include "st_conf.h"
 #include "st_title.h"
@@ -710,10 +711,12 @@ static int main_init(int argc, char *argv[])
         return 0;
     }
 
+
     opt_parse(argc, argv);
 
     config_paths(opt_data);
     log_init("Neverball", "neverball.log");
+
     make_dirs_and_migrate();
 
     /* Initialize SDL. */
@@ -786,6 +789,8 @@ static void main_quit(void)
 int main(int argc, char *argv[])
 {
     struct main_loop mainloop = { 0 };
+
+    mod_init();
 
     if (!main_init(argc, argv))
         return 1;
