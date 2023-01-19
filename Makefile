@@ -47,9 +47,9 @@ endif
 # Optional flags (CFLAGS, CPPFLAGS, ...)
 
 ifeq ($(DEBUG),1)
-	CFLAGS   := -g
-	CXXFLAGS := -g
-	CPPFLAGS :=
+	CFLAGS   := -g -O0
+	CXXFLAGS := -g -O0
+	CPPFLAGS := -g -O0
 else
 	CFLAGS   := -O2
 	CXXFLAGS := -O2
@@ -66,12 +66,12 @@ ifeq ($(ENABLE_TILT),wii)
 	# libwiimote headers make heavy use of the "unnamed fields" GCC
 	# extension.
 
-	ALL_CFLAGS := -Wall -Wshadow -std=c99 -pedantic -fms-extensions $(CFLAGS)
+	ALL_CFLAGS := -Wall -Wshadow -std=c99 -pedantic -fms-extensions -rdynamic $(CFLAGS)
 else
-	ALL_CFLAGS := -Wall -Wshadow -std=c99 -pedantic $(CFLAGS)
+	ALL_CFLAGS := -Wall -Wshadow -std=c99 -pedantic -rdynamic $(CFLAGS)
 endif
 
-ALL_CXXFLAGS := -fno-rtti -fno-exceptions $(CXXFLAGS)
+ALL_CXXFLAGS := -fno-rtti -fno-exceptions $(CXXFLAGS) -rdynamic
 
 # Preprocessor...
 
@@ -383,7 +383,7 @@ PUTT_OBJS := \
 	putt/main.o
 
 MOD_OBJS := \
-	modloader/events.o\
+	modloader/m_events.o\
 	modloader/init.o
 
 BALL_OBJS += $(MOD_OBJS)

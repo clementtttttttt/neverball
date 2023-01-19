@@ -40,7 +40,7 @@
 #include "st_name.h"
 #include "st_shared.h"
 
-#include "events.h"
+#include "m_events.h"
 
 /*---------------------------------------------------------------------------*/
 
@@ -166,6 +166,8 @@ static int title_gui(void)
 
     if ((id = gui_vstack(0)))
     {
+         signal_ev(EV_GUI_TITLE_INIT_PRE, 1, &id);
+
         if ((jd = gui_label(id, "  Neverball  ", GUI_LRG, 0, 0)))
             gui_set_fill(jd);
 

@@ -43,7 +43,7 @@
 #include "joy.h"
 #include "fetch.h"
 #include "package.h"
-#include "events.h"
+#include "m_events.h"
 
 #include "st_conf.h"
 #include "st_title.h"
@@ -790,7 +790,7 @@ int main(int argc, char *argv[])
 {
     struct main_loop mainloop = { 0 };
 
-    mod_init();
+    modl_init();
 
     if (!main_init(argc, argv))
         return 1;

@@ -297,7 +297,7 @@ int main(int argc, char *argv[])
 {
     int camera = 0;
 
-    mod_init();
+    modl_init();
 
     if (!fs_init(argc > 0 ? argv[0] : NULL))
     {

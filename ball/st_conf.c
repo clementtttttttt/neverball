@@ -32,6 +32,7 @@
 #include "st_name.h"
 #include "st_ball.h"
 #include "st_shared.h"
+#include "m_events.h"
 
 extern const char TITLE[];
 extern const char ICON[];
@@ -197,6 +198,8 @@ static int conf_gui(void)
             gui_set_label(lang_id, lang_name(&curr_lang));
         else
             gui_set_label(lang_id, _("Default"));
+
+        signal_ev(EV_GUI_CONF_INIT_POST, 1, &id);
     }
 
     return id;
