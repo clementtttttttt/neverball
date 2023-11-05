@@ -137,7 +137,7 @@ static void game_draw_jumps(struct s_rend *rend,
     int i;
 
     for (i = 0; i < base->jc; i++)
-        jump_draw(rend, base->jv[i].p, base->jv[i].r, 1.0f);
+        jump_draw(rend, base->jv[i].p, base->jv[i].r, (float)(int)!gd->jump_e,t);
 }
 
 /*---------------------------------------------------------------------------*/

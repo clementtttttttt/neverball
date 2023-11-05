@@ -500,6 +500,17 @@ inline static void goal_part_draw(struct s_rend *rend, GLfloat s)
     glScalef(0.8f, 1.1f, 0.8f);
 }
 
+static void jump_part_draw(struct s_rend *rend, GLfloat s, GLfloat a)
+{
+    glMatrixMode(GL_TEXTURE);
+    glTranslatef(s, 0.0f, 0.0f);
+    glMatrixMode(GL_MODELVIEW);
+
+    glRotatef(a, 0.0f, 1.0f, 0.0f);
+    sol_draw(&jump.draw, rend, 1, 1);
+    glScalef(0.9f, 0.9f, 0.9f);
+}
+
 
 void goal_draw(struct s_rend *rend, const GLfloat *p, GLfloat r, GLfloat h, GLfloat t)
 {
@@ -535,9 +546,11 @@ void goal_draw(struct s_rend *rend, const GLfloat *p, GLfloat r, GLfloat h, GLfl
 
 }
 
-void jump_draw(struct s_rend *rend, const GLfloat *p, GLfloat r, GLfloat h)
+void jump_draw(struct s_rend *rend, const GLfloat *p, GLfloat r, GLfloat h,float t)
 {
-    GLfloat height = (hmd_stat() ? 0.3f : 1.0f) * video.device_h;
+
+//	unsigned int t = 99;
+/*GLfloat height = (hmd_stat() ? 0.3f : 1.0f) * video.device_h;
 
     glPointSize(height / 12);
 
@@ -545,9 +558,40 @@ void jump_draw(struct s_rend *rend, const GLfloat *p, GLfloat r, GLfloat h)
     {
         glTranslatef(p[0], p[1], p[2]);
         glScalef(r, h, r);
-        sol_draw(&jump.draw, rend, 1, 1);
+        sol_draw(&jump.draw, rend, 0.16, 360);
     }
     glPopMatrix();
+	
+*/
+
+     
+
+        static GLfloat c[4][4] = {
+        { 0.75f, 0.5f, 1.0f, 0.5f },
+        { 0.75f, 0.5f, 1.0f, 0.8f },
+    };
+
+    glPushMatrix();
+    {
+     //   glColor4f(c[(unsigned int)h][0], c[(unsigned int)h][1], c[(unsigned int)h][2], c[(unsigned int)h][3]);
+        glTranslatef(p[0], p[1], p[2]);
+
+        glScalef(r,2.0f, r);
+
+//        sol_draw(&beam.draw, rend, 1, 1);
+
+        jump_part_draw(rend, t * 0.15f*1, t * 360.0f*1);
+        jump_part_draw(rend, t * 0.20f*1, t * 360.0f*1);
+        jump_part_draw(rend, t * 0.25f*1, t * 360.0f*1);
+
+        glMatrixMode(GL_TEXTURE);
+        glLoadIdentity();
+        glMatrixMode(GL_MODELVIEW);
+
+        glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+    }
+    glPopMatrix();
+	
 }
 
 void flag_draw(struct s_rend *rend, const GLfloat *p)
