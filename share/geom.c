@@ -490,9 +490,20 @@ void beam_draw(struct s_rend *rend, const GLfloat *p,
     glPopMatrix();
 }
 
+inline static void goal_part_draw(struct s_rend *rend, GLfloat s)
+{
+    glMatrixMode(GL_TEXTURE);
+    glTranslatef(0.0f, -s, 0.0f);
+    glMatrixMode(GL_MODELVIEW);
+    //glColor4f(0.0f, 0.0f, 0.0f, 0.5f);
+    sol_draw(&goal.draw, rend, 1.3, 1.3);
+    glScalef(0.8f, 1.1f, 0.8f);
+}
+
+
 void goal_draw(struct s_rend *rend, const GLfloat *p, GLfloat r, GLfloat h, GLfloat t)
 {
-    GLfloat height = (hmd_stat() ? 0.3f : 1.0f) * video.device_h;
+/*    GLfloat height = (hmd_stat() ? 0.3f : 1.0f) * video.device_h;
 
     glPointSize(height / 6);
 
@@ -503,6 +514,25 @@ void goal_draw(struct s_rend *rend, const GLfloat *p, GLfloat r, GLfloat h, GLfl
         sol_draw(&goal.draw, rend, 1, 1);
     }
     glPopMatrix();
+  */  glPushMatrix();
+    {
+          glTranslatef(p[0],p[1],p[2]);
+	  
+	glScalef(r, /*h*/3.0f, r);
+    //	sol_draw(&beam.draw, rend, 1, 1); draws beam which is already drawn
+	//originally 4 statements put into a for for convenience
+
+	for(int i=0;i<4;++i){
+       		goal_part_draw(rend, t * 0.1f);
+        }
+        glMatrixMode(GL_TEXTURE);
+        glLoadIdentity();
+        glMatrixMode(GL_MODELVIEW);
+
+        glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+    }
+    glPopMatrix();
+
 }
 
 void jump_draw(struct s_rend *rend, const GLfloat *p, GLfloat r, GLfloat h)
