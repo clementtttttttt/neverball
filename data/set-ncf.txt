@@ -1,0 +1,10 @@
+Not-So-Crazy Force
+Dificulty: Tour-de-Force\\\A special level set\\Original Author: p2013125 the kid\\Polisher: p2013125 the young adult
+ncf
+shot-ncf/2way1.png
+
+map-ncf/2way1.sol
+map-ncf/fast.sol
+map-ncf/jump2.sol
+map-ncf/color.sol
+map-ncf/all.sol
