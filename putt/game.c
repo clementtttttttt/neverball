@@ -251,6 +251,27 @@ static void game_draw_beams(struct s_rend *rend, const struct s_base *bp,
     }
 }
 
+static void game_draw_jumps(struct s_rend *rend, const struct s_base *fp)
+{
+    float t = 0.001f * SDL_GetTicks();
+    int ji;
+
+    for (ji = 0; ji < fp->jc; ji++)
+    {
+        glPushMatrix();
+        {
+    /*        glTranslatef(fp->jv[ji].p[0],
+                         fp->jv[ji].p[1],
+                         fp->jv[ji].p[2]);
+
+            glScalef(fp->jv[ji].r, 1.f, fp->jv[ji].r);
+*/            
+	    jump_draw(rend,fp->jv[ji].p,fp->jv[ji].r,!jump_e,t);
+        }
+        glPopMatrix();
+    }
+}
+
 /*---------------------------------------------------------------------------*/
 
 static void game_shadow_conf(int enable)
@@ -339,7 +360,8 @@ void game_draw(int pose, float t)
         {
             game_draw_flags(&rend, fp->base);
             game_draw_beams(&rend, fp->base, fp->vary);
-        }
+      	    game_draw_jumps(&rend, fp->base); 
+	}
         glDepthMask(GL_TRUE);
 
         glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
