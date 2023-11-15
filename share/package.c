@@ -3,12 +3,20 @@
 #include "common.h"
 #include "fetch.h"
 #include "fs.h"
+#include "lang.h"
+
+enum package_image_status
+{
+    PACKAGE_IMAGE_NONE = 0,
+    PACKAGE_IMAGE_DOWNLOADING
+};
 
 struct package
 {
     unsigned int size;
 
     char id[64];
+    char type[64];
     char filename[MAXSTR];
     char files[MAXSTR];
     char name[64];
@@ -16,6 +24,7 @@ struct package
     char shot[64];
 
     enum package_status status;
+    enum package_image_status image_status;
 };
 
 static Array available_packages;
@@ -77,17 +86,46 @@ static const char *get_package_path(const char *filename)
  * the package directory and figure out which ZIP files can be added to the FS
  * and which ones can't.
  */
+
+struct local_package
+{
+    char id[64];
+    char filename[MAXSTR];
+};
+
 static List installed_packages;
+
+static struct local_package *create_local_package(const char *package_id, const char *filename)
+{
+    struct local_package *lpkg = calloc(sizeof (*lpkg), 1);
+
+    if (lpkg)
+    {
+        SAFECPY(lpkg->id, package_id);
+        SAFECPY(lpkg->filename, filename);
+    }
+
+    return lpkg;
+}
+
+static void free_local_package(struct local_package **lpkg)
+{
+    if (lpkg && *lpkg)
+    {
+        free(*lpkg);
+        *lpkg = NULL;
+    }
+}
 
 /*
  * Add package file to FS path.
  */
-static int mount_package(const char *filename)
+static int mount_package_file(const char *filename)
 {
     const char *write_dir = fs_get_write_dir();
     int added = 0;
 
-    if (write_dir)
+    if (filename && *filename && write_dir)
     {
         char *path = concat_string(write_dir, "/" PACKAGE_DIR "/", filename, NULL);
 
@@ -104,23 +142,70 @@ static int mount_package(const char *filename)
 }
 
 /*
+ * Remove package file from the FS read path.
+ */
+static void unmount_package_file(const char *filename)
+{
+    const char *write_dir = fs_get_write_dir();
+
+    if (filename && *filename && write_dir)
+    {
+        char *path = concat_string(write_dir, "/" PACKAGE_DIR "/", filename, NULL);
+
+        if (path)
+        {
+            fs_remove_path(path);
+
+            free(path);
+            path = NULL;
+        }
+    }
+}
+
+/*
+ * Unmount and uninstall other instances of the given local package.
+ */
+static void unmount_duplicate_local_packages(const struct local_package *keep_lpkg)
+{
+    List p, l;
+
+    /* Unmount and uninstall other instances of this package ID. */
+
+    for (p = NULL, l = installed_packages; l; p = l, l = l->next)
+    {
+        struct local_package *test_lpkg = l->data;
+
+        if (test_lpkg != keep_lpkg && strcmp(test_lpkg->id, keep_lpkg->id) == 0)
+        {
+            unmount_package_file(test_lpkg->filename);
+
+            free_local_package(&test_lpkg);
+
+            l->data = NULL;
+
+            if (p)
+            {
+                p->next = list_rest(l);
+                l = p;
+            }
+            else
+            {
+                installed_packages = list_rest(l);
+                l = installed_packages;
+            }
+        }
+    }
+}
+
+/*
  * Add a package to the FS path and to the list, if not yet added.
  */
-static int mount_installed_package(const char *filename)
+static int mount_local_package(struct local_package *lpkg)
 {
-    List l;
-
-    /* Avoid double addition. */
-
-    for (l = installed_packages; l; l = l->next)
-        if (l->data && strcmp(l->data, filename) == 0)
-            return 1;
-
-    /* Attempt addition. */
-
-    if (mount_package(filename))
+    if (lpkg && mount_package_file(lpkg->filename))
     {
-        installed_packages = list_cons(strdup(filename), installed_packages);
+        installed_packages = list_cons(lpkg, installed_packages);
+        unmount_duplicate_local_packages(lpkg);
         return 1;
     }
 
@@ -138,12 +223,62 @@ static int load_installed_packages(void)
     {
         char line[MAXSTR] = "";
 
+        Array pkgs = array_new(sizeof (struct local_package));
+        struct local_package *lpkg = NULL;
+        int i, n;
+
         while (fs_gets(line, sizeof (line), fp))
         {
             strip_newline(line);
 
-            if (fs_exists(get_package_path(line)))
-                mount_installed_package(line);
+            if (strncmp(line, "package ", 8) == 0)
+            {
+                lpkg = array_add(pkgs);
+
+                if (lpkg)
+                    SAFECPY(lpkg->id, line + 8);
+            }
+            else if (strncmp(line, "filename ", 9) == 0)
+            {
+                if (lpkg)
+                    SAFECPY(lpkg->filename, line + 9);
+            }
+            else if (fs_exists(get_package_path(line)))
+            {
+                /* Backward compatibility: the entire line is the filename. */
+
+                if ((lpkg = array_add(pkgs)))
+                {
+                    char *delim;
+
+                    SAFECPY(lpkg->filename, line);
+
+                    /* Extract package ID from the filename. */
+
+                    if ((delim = strrchr(lpkg->filename, '-')))
+                    {
+                        size_t len = delim - lpkg->filename;
+                        memcpy(lpkg->id, lpkg->filename, MIN(sizeof (lpkg->id) - 1, len));
+                    }
+
+                    lpkg = NULL;
+                }
+            }
+        }
+
+        for (i = 0, n = array_len(pkgs); i < n; ++i)
+        {
+            const struct local_package *src = array_get(pkgs, i);
+            struct local_package *dst = create_local_package(src->id, src->filename);
+
+            if (!mount_local_package(dst))
+                free_local_package(&dst);
+        }
+
+        if (pkgs)
+        {
+            array_free(pkgs);
+            pkgs = NULL;
         }
 
         fs_close(fp);
@@ -169,8 +304,12 @@ static int save_installed_packages(void)
             List l;
 
             for (l = installed_packages; l; l = l->next)
-                if (l->data)
-                    fs_printf(fp, "%s\n", l->data);
+            {
+                struct local_package *lpkg = l->data;
+
+                if (lpkg)
+                    fs_printf(fp, "package %s\nfilename %s\n", lpkg->id, lpkg->filename);
+            }
 
             fs_close(fp);
             fp = NULL;
@@ -193,8 +332,9 @@ static void free_installed_packages(void)
 
     while (l)
     {
-        if (l->data)
-            free(l->data);
+        struct local_package *lpkg = l->data;
+
+        free_local_package(&lpkg);
 
         l = list_rest(l);
     }
@@ -218,19 +358,24 @@ static void load_package_statuses(Array packages)
         for (i = 0, n = array_len(packages); i < n; ++i)
         {
             struct package *pkg = array_get(packages, i);
-            const char *dest_filename = get_package_path(pkg->filename);
+
+            List l;
 
             pkg->status = PACKAGE_AVAILABLE;
 
-            if (dest_filename && fs_exists(dest_filename))
+            for (l = installed_packages; l; l = l->next)
             {
-                pkg->status = PACKAGE_PARTIAL;
+                struct local_package *lpkg = l->data;
 
-                if (fs_size(dest_filename) == pkg->size)
+                if (strcmp(pkg->id, lpkg->id) == 0)
                 {
-                    pkg->status = PACKAGE_INSTALLED;
+                    pkg->status = PACKAGE_UPDATE;
 
-                    mount_installed_package(pkg->filename);
+                    if (strcmp(pkg->filename, lpkg->filename) == 0)
+                    {
+                        pkg->status = PACKAGE_INSTALLED;
+                        break;
+                    }
                 }
             }
         }
@@ -265,9 +410,15 @@ static Array load_packages_from_file(const char *filename)
 
                 if (pkg)
                 {
+                    size_t prefix_len;
+
                     memset(pkg, 0, sizeof (*pkg));
 
                     SAFECPY(pkg->id, line + 8);
+
+                    prefix_len = strcspn(pkg->id, "-");
+
+                    strncpy(pkg->type, pkg->id, MIN(sizeof (pkg->type) - 1, prefix_len));
                 }
             }
             else if (strncmp(line, "filename ", 9) == 0)
@@ -293,7 +444,19 @@ static Array load_packages_from_file(const char *filename)
             else if (strncmp(line, "desc ", 5) == 0)
             {
                 if (pkg)
+                {
+                    char *s = NULL;
+
                     SAFECPY(pkg->desc, line + 5);
+
+                    /* Replace "\\n" with "\r\n" in place. I really just need the "\n", but don't want to move bytes around. */
+
+                    for (s = pkg->desc; (s = strstr(s, "\\n")); s += 2)
+                    {
+                        s[0] = '\r';
+                        s[1] = '\n';
+                    }
+                }
             }
             else if (strncmp(line, "shot ", 5) == 0)
             {
@@ -324,33 +487,89 @@ static void free_packages(Array packages)
 
 /*---------------------------------------------------------------------------*/
 
+struct package_image_info
+{
+    struct fetch_callback callback;
+    struct package *pkg;
+};
+
+static struct package_image_info *create_pii(struct fetch_callback callback, struct package *pkg)
+{
+    struct package_image_info *pii = calloc(sizeof (*pii), 1);
+
+    if (pii)
+    {
+        pii->callback = callback;
+        pii->pkg = pkg;
+    }
+
+    return pii;
+}
+
+static void free_pii(struct package_image_info **pii)
+{
+    if (pii && *pii)
+    {
+        free(*pii);
+        *pii = NULL;
+    }
+}
+
+static void package_image_done(void *data, void *extra_data)
+{
+    struct package_image_info *pii = data;
+    struct fetch_done *fd = extra_data;
+
+    if (pii)
+    {
+        if (fd && fd->finished && pii->pkg)
+            pii->pkg->image_status = PACKAGE_IMAGE_NONE;
+
+        if (pii->callback.done)
+            pii->callback.done(pii->callback.data, extra_data);
+
+        free_pii(&pii);
+    }
+}
+
 /*
  * Queue missing package images for download.
  */
-static void fetch_package_images(Array packages)
+unsigned int package_fetch_image(int pi, struct fetch_callback nested_callback)
 {
-    if (packages)
+    unsigned int fetch_id = 0;
+
+    if (available_packages && pi >= 0 && pi < array_len(available_packages))
     {
-        int i, n = array_len(packages);
+        struct package *pkg = array_get(available_packages, pi);
+        const char *filename = package_get_shot_filename(pi);
 
-        for (i = 0; i < n; ++i)
+        if (filename && *filename && !fs_exists(filename) && !pkg->image_status)
         {
-            struct package *pkg = array_get(packages, i);
-            const char *filename = package_get_shot_filename(i);
+            const char *url = get_package_url(pkg->shot);
 
-            if (filename && *filename && !fs_exists(filename))
+            if (url)
             {
-                const char *url = get_package_url(pkg->shot);
+                struct fetch_callback callback = { 0 };
+                struct package_image_info *pii = create_pii(nested_callback, pkg);
 
-                if (url)
+                callback.data = pii;
+                callback.done = package_image_done;
+
+                fetch_id = fetch_url(url, filename, callback);
+
+                if (fetch_id)
+                    pkg->image_status = PACKAGE_IMAGE_DOWNLOADING;
+                else
                 {
-                    struct fetch_callback callback = { 0 };
-
-                    fetch_url(url, filename, callback);
+                    free_pii(&pii);
+                    callback.data = NULL;
                 }
             }
         }
     }
+
+    return fetch_id;
 }
 
 /*---------------------------------------------------------------------------*/
@@ -371,13 +590,7 @@ static void available_packages_done(void *data, void *extra_data)
             Array packages = load_packages_from_file(filename);
 
             if (packages)
-            {
                 available_packages = packages;
-
-                /* TODO: notify the player somehow about this fact. */
-
-                fetch_package_images(available_packages);
-            }
         }
     }
 }
@@ -387,11 +600,7 @@ static void available_packages_done(void *data, void *extra_data)
  */
 static void fetch_available_packages(void)
 {
-#ifdef __EMSCRIPTEN__
-    const char *url = get_package_url("available-packages-emscripten.txt");
-#else
     const char *url = get_package_url("available-packages.txt");
-#endif
 
     if (url)
     {
@@ -456,6 +665,11 @@ void package_quit(void)
     free_installed_packages();
 }
 
+int package_count(void)
+{
+    return available_packages ? array_len(available_packages) : 0;
+}
+
 /*
  * Find a package that has FILE in its "files" string.
  */
@@ -469,7 +683,28 @@ int package_search(const char *file)
         {
             struct package *pkg = array_get(available_packages, i);
 
-            if (pkg && strcmp(pkg->files, file) == 0)
+            if (pkg && strstr(pkg->files, file) != NULL)
+                return i;
+        }
+    }
+
+    return -1;
+}
+
+/*
+ * Find a package by ID.
+ */
+int package_search_id(const char *package_id)
+{
+    if (available_packages)
+    {
+        int i, n;
+
+        for (i = 0, n = array_len(available_packages); i < n; ++i)
+        {
+            struct package *pkg = array_get(available_packages, i);
+
+            if (pkg && strcmp(pkg->id, package_id) == 0)
                 return i;
         }
     }
@@ -499,45 +734,58 @@ int package_next(const char *type, int start)
     return -1;
 }
 
-/*
- * Get package status.
- */
-enum package_status package_get_status(int package_id)
+enum package_status package_get_status(int pi)
 {
-    if (package_id >= 0 && package_id < array_len(available_packages))
-        return PACKAGE_GET(available_packages, package_id)->status;
+    if (pi >= 0 && pi < array_len(available_packages))
+        return PACKAGE_GET(available_packages, pi)->status;
 
     return PACKAGE_NONE;
 }
 
-const char *package_get_name(int package_id)
+const char *package_get_id(int pi)
 {
-    if (package_id >= 0 && package_id < array_len(available_packages))
-        return PACKAGE_GET(available_packages, package_id)->name;
+    if (pi >= 0 && pi < array_len(available_packages))
+        return PACKAGE_GET(available_packages, pi)->id;
 
     return NULL;
 }
 
-const char *package_get_desc(int package_id)
+const char *package_get_type(int pi)
 {
-    if (package_id >= 0 && package_id < array_len(available_packages))
-        return PACKAGE_GET(available_packages, package_id)->desc;
+    if (pi >= 0 && pi < array_len(available_packages))
+        return PACKAGE_GET(available_packages, pi)->type;
 
     return NULL;
 }
 
-const char *package_get_shot(int package_id)
+const char *package_get_name(int pi)
 {
-    if (package_id >= 0 && package_id < array_len(available_packages))
-        return PACKAGE_GET(available_packages, package_id)->shot;
+    if (pi >= 0 && pi < array_len(available_packages))
+        return PACKAGE_GET(available_packages, pi)->name;
 
     return NULL;
 }
 
-const char *package_get_files(int package_id)
+const char *package_get_desc(int pi)
 {
-    if (package_id >= 0 && package_id < array_len(available_packages))
-        return PACKAGE_GET(available_packages, package_id)->files;
+    if (pi >= 0 && pi < array_len(available_packages))
+        return PACKAGE_GET(available_packages, pi)->desc;
+
+    return NULL;
+}
+
+const char *package_get_shot(int pi)
+{
+    if (pi >= 0 && pi < array_len(available_packages))
+        return PACKAGE_GET(available_packages, pi)->shot;
+
+    return NULL;
+}
+
+const char *package_get_files(int pi)
+{
+    if (pi >= 0 && pi < array_len(available_packages))
+        return PACKAGE_GET(available_packages, pi)->files;
 
     return NULL;
 }
@@ -545,9 +793,30 @@ const char *package_get_files(int package_id)
 /*
  * Construct a package image filename relative to the write dir.
  */
-const char *package_get_shot_filename(int package_id)
+const char *package_get_shot_filename(int pi)
 {
-    return get_package_path(package_get_shot(package_id));
+    return get_package_path(package_get_shot(pi));
+}
+
+const char *package_get_formatted_type(int pi)
+{
+    const char *type = package_get_type(pi);
+
+    if (type)
+    {
+        if (strcmp(type, "set") == 0)
+            return _("Level Set");
+        else if (strcmp(type, "ball") == 0)
+            return _("Ball");
+        else if (strcmp(type, "course") == 0)
+            return _("Course");
+        else if (strcmp(type, "base") == 0)
+            return _("Base");
+        else if (strcmp(type, "gui") == 0)
+            return _("Theme");
+    }
+
+    return type;
 }
 
 /*---------------------------------------------------------------------------*/
@@ -628,6 +897,8 @@ static void package_fetch_done(void *data, void *extra_data)
 
         if (dn->finished)
         {
+            struct local_package *lpkg = create_local_package(pkg->id, pkg->filename);
+
             /* Rename from temporary name to destination name. */
 
             if (pfi->temp_filename && pfi->dest_filename)
@@ -635,8 +906,16 @@ static void package_fetch_done(void *data, void *extra_data)
 
             /* Add package to installed packages and to FS. */
 
-            if (mount_installed_package(pkg->filename))
-                pkg->status = PACKAGE_INSTALLED;
+            if (lpkg)
+            {
+                if (mount_local_package(lpkg))
+                    pkg->status = PACKAGE_INSTALLED;
+                else
+                    free_local_package(&lpkg);
+
+                lpkg = NULL;
+            }
+
         }
 
         if (pfi->callback.done)
@@ -647,13 +926,13 @@ static void package_fetch_done(void *data, void *extra_data)
     }
 }
 
-unsigned int package_fetch(int package_id, struct fetch_callback callback)
+unsigned int package_fetch(int pi, struct fetch_callback callback)
 {
     unsigned int fetch_id = 0;
 
-    if (package_id >= 0 && package_id < array_len(available_packages))
+    if (pi >= 0 && pi < array_len(available_packages))
     {
-        struct package *pkg = array_get(available_packages, package_id);
+        struct package *pkg = array_get(available_packages, pi);
         const char *url = get_package_url(pkg->filename);
 
         if (url)

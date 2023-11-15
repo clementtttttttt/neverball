@@ -14,6 +14,7 @@
 *.bak
 *.autosave.map
 .vscode
+.DS_Store
 
 /neverball.exe
 /neverputt.exe
@@ -24,6 +25,10 @@
 /js/neverball.data
 /js/neverball.js
 /js/neverball.wasm
+/js/mapc.js
+/js/mapc.wasm
 /js/packages
 /*.zip
 po/*.po~
+/packages
+

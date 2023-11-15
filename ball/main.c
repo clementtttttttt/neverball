@@ -44,6 +44,7 @@
 #include "fetch.h"
 #include "package.h"
 #include "m_events.h"
+#include "log.h"
 
 #include "st_conf.h"
 #include "st_title.h"
@@ -51,8 +52,7 @@
 #include "st_level.h"
 #include "st_pause.h"
 
-#include "m_events.h"
-const char TITLE[] = "Neverball " VERSION;
+const char TITLE[] = "Neverball";
 const char ICON[] = "icon/neverball.png";
 
 /*---------------------------------------------------------------------------*/

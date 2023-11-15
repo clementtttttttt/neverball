@@ -16,7 +16,7 @@ ifeq ($(shell uname), Darwin)
 	PLATFORM := darwin
 endif
 
-ifeq ($(shell uname -o),Msys)
+ifeq ($(shell uname -o 2> /dev/null),Msys)
 	PLATFORM := mingw
 endif
 
@@ -110,12 +110,17 @@ endif
 ENABLE_FETCH := curl
 
 ifeq ($(ENABLE_FETCH),curl)
-	ALL_CPPFLAGS += $(shell curl-config --cflags)
+	ALL_CPPFLAGS += $(shell curl-config --cflags) -DENABLE_FETCH=1
+else
+	ALL_CPPFLAGS += -DENABLE_FETCH=0
 endif
 
 ifeq ($(PLATFORM),darwin)
-	ALL_CPPFLAGS += $(patsubst %, -I%, $(wildcard /opt/local/include \
-	                                              /usr/local/include))
+    ALL_CFLAGS += -Wno-newline-eof
+    ALL_CPPFLAGS += \
+        -DGL_SILENCE_DEPRECATION=1 \
+        $(patsubst %, -I%, $(wildcard /opt/local/include \
+                                      /usr/local/include))
 endif
 
 ALL_CPPFLAGS += $(CPPFLAGS)
@@ -305,6 +310,7 @@ BALL_OBJS := \
 	share/log.o         \
 	share/joy.o         \
 	share/package.o     \
+	share/st_package.o  \
 	ball/hud.o          \
 	ball/game_common.o  \
 	ball/game_client.o  \

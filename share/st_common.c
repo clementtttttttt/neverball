@@ -185,6 +185,10 @@ int common_buttn(int b, int d)
             return common_action(gui_token(active), gui_value(active));
         if (config_tst_d(CONFIG_JOYSTICK_BUTTON_B, b))
             return common_action(GUI_BACK, 0);
+        if (config_tst_d(CONFIG_JOYSTICK_BUTTON_L1, b))
+            return common_action(GUI_PREV, 0);
+        if (config_tst_d(CONFIG_JOYSTICK_BUTTON_R1, b))
+            return common_action(GUI_NEXT, 0);
     }
     return 1;
 }
@@ -883,7 +887,7 @@ static int joystick_gui(void)
 
                 continue;
             }
-            
+
             value = config_get_d(*joystick_options[i]);
 
             if ((btn_id = conf_state(id, _(joystick_option_names[i]), "99", 0)))
@@ -951,7 +955,7 @@ static void joystick_paint(int id, float t)
 
     if (joystick_modal == JOYSTICK_ASSIGN_BUTTON)
         gui_paint(joystick_modal_button_id);
-    
+
     if (joystick_modal == JOYSTICK_ASSIGN_AXIS)
         gui_paint(joystick_modal_axis_id);
 }
