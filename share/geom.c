@@ -495,7 +495,7 @@ inline static void goal_part_draw(struct s_rend *rend, GLfloat s)
     glMatrixMode(GL_TEXTURE);
     glTranslatef(0.0f, -s, 0.0f);
     glMatrixMode(GL_MODELVIEW);
-    //glColor4f(0.0f, 0.0f, 0.0f, 0.5f);
+    glColor4f(1.0f, 1.0f, 0.0f, 1.0f);
     sol_draw(&goal.draw, rend, 1.3, 1.3);
     glScalef(0.8f, 1.1f, 0.8f);
 }

@@ -51,6 +51,7 @@
 #include "st_level.h"
 #include "st_pause.h"
 
+#include "m_events.h"
 const char TITLE[] = "Neverball " VERSION;
 const char ICON[] = "icon/neverball.png";
 
@@ -438,6 +439,8 @@ static int loop(void)
             break;
         }
     }
+
+    signal_ev(EV_VID_LOOP,0);
 
     /* Process events via the tilt sensor API. */
 
